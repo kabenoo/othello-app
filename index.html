@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>オセロ対戦アプリ</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <main class="app">
+    <h1>オセロ対戦アプリ</h1>
+
+    <section class="panel">
+      <div class="settings-grid">
+        <div class="setting-box">
+          <label for="playerColor">あなたの色</label>
+          <select id="playerColor">
+            <option value="black">黒</option>
+            <option value="white">白</option>
+          </select>
+        </div>
+
+        <div class="setting-box">
+          <label for="cpuLevel">コンピュータの強さ</label>
+          <select id="cpuLevel">
+            <option value="easy">弱い</option>
+            <option value="normal">普通</option>
+            <option value="hard">強い</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="startBtn">ゲーム開始</button>
+    </section>
+
+    <section class="status-area">
+      <p id="turnText">ゲーム開始を押してください</p>
+      <p id="scoreText">黒：2　白：2</p>
+    </section>
+
+    <section id="board" class="board"></section>
+
+    <section class="button-area">
+      <button id="resetBtn">最初から</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
