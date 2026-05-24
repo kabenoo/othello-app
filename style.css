@@ -52,7 +52,15 @@ h1 {
 select {
   width: 100%;
   font-size: 16px;
-  padding: 6px 8px;
+  padding: 8px 10px;
+  min-height: 44px;
+  background-color: #ffffff;
+  color: #222;
+  border: 1px solid #999;
+  border-radius: 6px;
+  appearance: auto;
+  -webkit-appearance: menulist;
+  touch-action: manipulation;
 }
 
 button {
@@ -158,8 +166,9 @@ button:hover {
   }
 
   select {
-    font-size: 15px;
-    padding: 5px 6px;
+    font-size: 16px;
+  padding: 8px 10px;
+  min-height: 44px;
   }
 
   button {
