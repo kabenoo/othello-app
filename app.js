@@ -258,6 +258,20 @@ function cpuMove() {
 
   if (cpuLevel === "easy") {
     // 弱い：今のまま
+    move = chooseEasyMove(validMoves);
+  } else if (cpuLevel === "normal") {
+    // 普通：これまでの「強い」2手先読み版
+    move = chooseNormalMove(validMoves);
+  } else {
+    // 強い：新しい深読み版
+    move = chooseHardMove(validMoves);
+  }
+
+  placeStone(move.row, move.col, cpuColor);
+  afterMove();
+}
+
+// 弱い：今のまま
 // 角を取る、辺を少し好む、危険マスを避ける
 function chooseEasyMove(validMoves) {
   const cornerMoves = validMoves.filter(move => isCorner(move.row, move.col));
