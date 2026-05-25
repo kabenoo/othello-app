@@ -257,21 +257,7 @@ function cpuMove() {
   let move;
 
   if (cpuLevel === "easy") {
-    // 弱い：以前の「強い」簡易版
-    move = chooseEasyMove(validMoves);
-  } else if (cpuLevel === "normal") {
-    // 普通：1つ前の「強い」評価関数版
-    move = chooseNormalMove(validMoves);
-  } else {
-    // 強い：現在の2手先読み版
-    move = chooseHardMove(validMoves);
-  }
-
-  placeStone(move.row, move.col, cpuColor);
-  afterMove();
-}
-
-// 弱い：以前の「強い」簡易版
+    // 弱い：今のまま
 // 角を取る、辺を少し好む、危険マスを避ける
 function chooseEasyMove(validMoves) {
   const cornerMoves = validMoves.filter(move => isCorner(move.row, move.col));
@@ -310,27 +296,8 @@ function chooseEasyMove(validMoves) {
   return chooseMostFlipsMove(validMoves);
 }
 
-// 普通：1つ前の「強い」評価関数版
-// 角、危険マス、相手の角、合法手数、終盤石数などを評価
+// 普通：これまでの「強い」2手先読み版
 function chooseNormalMove(validMoves) {
-  let bestMove = validMoves[0];
-  let bestScore = -999999;
-
-  for (const move of validMoves) {
-    const score = evaluateMoveOnePly(move, cpuColor);
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = move;
-    }
-  }
-
-  return bestMove;
-}
-
-// 強い：2手先読み版
-// 自分が打った後、相手が一番嫌な手を打ってくる前提で評価
-function chooseHardMove(validMoves) {
   let bestMove = validMoves[0];
   let bestScore = -999999;
 
@@ -344,6 +311,203 @@ function chooseHardMove(validMoves) {
   }
 
   return bestMove;
+}
+
+// 強い：新しい深読み版
+// ミニマックス法＋αβ枝刈りで、複数手先まで読む
+function chooseHardMove(validMoves) {
+  let bestMove = validMoves[0];
+  let bestScore = -999999999;
+
+  const emptyCount = countEmptyCellsOnBoard(board);
+  const searchDepth = getSearchDepth(emptyCount);
+  const orderedMoves = orderMovesForSearch(validMoves, board, cpuColor);
+
+  for (const move of orderedMoves) {
+    const nextBoard = copyBoard(board);
+    const result = placeStoneOnBoard(nextBoard, move.row, move.col, cpuColor);
+
+    if (!result.success) {
+      continue;
+    }
+
+    const score = alphaBeta(
+      nextBoard,
+      getOpponent(cpuColor),
+      searchDepth - 1,
+      -999999999,
+      999999999,
+      cpuColor
+    );
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+  }
+
+  return bestMove;
+}
+
+function getSearchDepth(emptyCount) {
+  // スマホでも重くなりすぎない範囲で、終盤ほど深く読む
+  if (emptyCount > 44) {
+    return 3;
+  }
+
+  if (emptyCount > 24) {
+    return 4;
+  }
+
+  if (emptyCount > 12) {
+    return 5;
+  }
+
+  if (emptyCount > 8) {
+    return 6;
+  }
+
+  // 残り8マス以下は、ほぼ最後まで読む
+  return emptyCount;
+}
+
+function alphaBeta(targetBoard, turnColor, depth, alpha, beta, maximizingColor) {
+  const opponent = getOpponent(turnColor);
+  const moves = getValidMovesOnBoard(targetBoard, turnColor);
+
+  const currentCanMove = moves.length > 0;
+  const opponentCanMove = getValidMovesOnBoard(targetBoard, opponent).length > 0;
+
+  // 終局
+  if (!currentCanMove && !opponentCanMove) {
+    return evaluateFinalBoard(targetBoard, maximizingColor);
+  }
+
+  // 読みの深さに到達
+  if (depth <= 0) {
+    return evaluateBoardForColor(targetBoard, maximizingColor);
+  }
+
+  // パス
+  if (!currentCanMove) {
+    return alphaBeta(
+      targetBoard,
+      opponent,
+      depth - 1,
+      alpha,
+      beta,
+      maximizingColor
+    );
+  }
+
+  const orderedMoves = orderMovesForSearch(moves, targetBoard, turnColor);
+
+  if (turnColor === maximizingColor) {
+    let value = -999999999;
+
+    for (const move of orderedMoves) {
+      const nextBoard = copyBoard(targetBoard);
+      const result = placeStoneOnBoard(nextBoard, move.row, move.col, turnColor);
+
+      if (!result.success) {
+        continue;
+      }
+
+      value = Math.max(
+        value,
+        alphaBeta(nextBoard, opponent, depth - 1, alpha, beta, maximizingColor)
+      );
+
+      alpha = Math.max(alpha, value);
+
+      if (alpha >= beta) {
+        break;
+      }
+    }
+
+    return value;
+  } else {
+    let value = 999999999;
+
+    for (const move of orderedMoves) {
+      const nextBoard = copyBoard(targetBoard);
+      const result = placeStoneOnBoard(nextBoard, move.row, move.col, turnColor);
+
+      if (!result.success) {
+        continue;
+      }
+
+      value = Math.min(
+        value,
+        alphaBeta(nextBoard, opponent, depth - 1, alpha, beta, maximizingColor)
+      );
+
+      beta = Math.min(beta, value);
+
+      if (alpha >= beta) {
+        break;
+      }
+    }
+
+    return value;
+  }
+}
+
+function orderMovesForSearch(moves, targetBoard, color) {
+  return moves.slice().sort((a, b) => {
+    const scoreA = getMoveOrderingScore(a, targetBoard, color);
+    const scoreB = getMoveOrderingScore(b, targetBoard, color);
+    return scoreB - scoreA;
+  });
+}
+
+function getMoveOrderingScore(move, targetBoard, color) {
+  const opponent = getOpponent(color);
+  const testBoard = copyBoard(targetBoard);
+  const result = placeStoneOnBoard(testBoard, move.row, move.col, color);
+
+  if (!result.success) {
+    return -999999;
+  }
+
+  let score = 0;
+
+  if (isCorner(move.row, move.col)) {
+    score += 100000;
+  }
+
+  if (isDangerNearEmptyCorner(move.row, move.col, targetBoard)) {
+    score -= 50000;
+  }
+
+  score += getPositionScore(move.row, move.col, targetBoard) * 100;
+
+  const opponentMoves = getValidMovesOnBoard(testBoard, opponent);
+  if (opponentMoves.some(m => isCorner(m.row, m.col))) {
+    score -= 80000;
+  }
+
+  score -= opponentMoves.length * 200;
+  score += result.flippedCount * 10;
+
+  return score;
+}
+
+function evaluateFinalBoard(targetBoard, color) {
+  const opponent = getOpponent(color);
+  const myCount = countStonesOnBoard(targetBoard, color);
+  const opponentCount = countStonesOnBoard(targetBoard, opponent);
+  const diff = myCount - opponentCount;
+
+  if (diff > 0) {
+    return 1000000 + diff * 1000;
+  }
+
+  if (diff < 0) {
+    return -1000000 + diff * 1000;
+  }
+
+  return 0;
 }
 
 function chooseMostFlipsMove(validMoves) {
@@ -360,69 +524,6 @@ function chooseMostFlipsMove(validMoves) {
   }
 
   return bestMove;
-}
-
-function evaluateMoveOnePly(move, color) {
-  const opponent = getOpponent(color);
-  const testBoard = copyBoard(board);
-
-  const result = placeStoneOnBoard(testBoard, move.row, move.col, color);
-
-  if (!result.success) {
-    return -999999;
-  }
-
-  const emptyCount = countEmptyCellsOnBoard(testBoard);
-  const myCount = countStonesOnBoard(testBoard, color);
-  const opponentCount = countStonesOnBoard(testBoard, opponent);
-
-  let score = 0;
-
-  // 1. 場所の価値
-  score += getPositionScore(move.row, move.col, testBoard) * 10;
-
-  // 2. 角は最優先
-  if (isCorner(move.row, move.col)) {
-    score += 10000;
-  }
-
-  // 3. 角が空いている時の危険マスを避ける
-  if (isDangerNearEmptyCorner(move.row, move.col, testBoard)) {
-    score -= 5000;
-  }
-
-  // 4. 相手に角を取らせる手を避ける
-  const opponentMoves = getValidMovesOnBoard(testBoard, opponent);
-  const opponentCanTakeCorner = opponentMoves.some(m => isCorner(m.row, m.col));
-
-  if (opponentCanTakeCorner) {
-    score -= 8000;
-  }
-
-  // 5. 相手の次の手を少なくする
-  score -= opponentMoves.length * 80;
-
-  // 6. 自分の次の候補手が増える形を少し評価
-  const myNextMoves = getValidMovesOnBoard(testBoard, color);
-  score += myNextMoves.length * 20;
-
-  // 7. 序盤は取りすぎを少し抑える
-  if (emptyCount > 40) {
-    score -= result.flippedCount * 25;
-  }
-
-  // 8. 中盤は少し石を取る価値も見る
-  if (emptyCount <= 40 && emptyCount > 15) {
-    score += result.flippedCount * 20;
-  }
-
-  // 9. 終盤は石数を重視
-  if (emptyCount <= 15) {
-    score += (myCount - opponentCount) * 120;
-    score += result.flippedCount * 80;
-  }
-
-  return score;
 }
 
 function evaluateMoveWithLookahead(move, color) {
@@ -534,11 +635,7 @@ function evaluateBoardForColor(targetBoard, color) {
 
   // 11. 終局している場合
   if (myMoves.length === 0 && opponentMoves.length === 0) {
-    if (myCount > opponentCount) {
-      score += 100000;
-    } else if (myCount < opponentCount) {
-      score -= 100000;
-    }
+    return evaluateFinalBoard(targetBoard, color);
   }
 
   return score;
